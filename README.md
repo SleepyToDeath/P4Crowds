@@ -1,2 +1,4 @@
 # P4Crowds
-Attempt to implement crowds network with p4.
+This is an attempt to move anonymity networks to programmable hardware. 
+In this project, I'm implementing Crowds with p4. It currently only aims
+for p4c simulator and mininet.
