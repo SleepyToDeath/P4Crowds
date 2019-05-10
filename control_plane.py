@@ -31,115 +31,69 @@ from convert import *
 
 from p4.v1 import p4runtime_pb2
 
-# Helper function to add entries to the Ethernet table.
-# The router cares about frames that match the local MAC or the broadcast MAC.
-# Nothing else.
-def AddEthernetEntries(sw, helper, local_mac, ingress_port):
+SUBMIT_ID = 4
+
+def addNextToPrev(sw, helper, n, p, is_submit):
     table_entry = helper.buildTableEntry(
-            table_name = "cis553Ingress.tiHandleEthernet",
-            match_fields = { "hdr.ethernet.dstAddr": local_mac,
-                             "standard_metadata.ingress_port" :  ingress_port},
-            action_name = "cis553Ingress.aiForMe")
+            table_name = "jondoIngress.nextToPrevPI",
+            match_fields = { "hdr.jondo.path_id": n},
+            action_name = "jondoIngress.setPathID",
+            action_params = { "path_id": p,
+                              "is_submit": is_submit } )
     sw.WriteTableEntry(table_entry);
 
+def addPrevToNext(sw, helper, n, p, is_submit):
     table_entry = helper.buildTableEntry(
-            table_name = "cis553Ingress.tiHandleEthernet",
-            match_fields = { "hdr.ethernet.dstAddr": "ff:ff:ff:ff:ff:ff",
-                             "standard_metadata.ingress_port" :  ingress_port},
-            action_name = "cis553Ingress.aiForMe")
+            table_name = "jondoIngress.prevToNextPI",
+            match_fields = { "hdr.jondo.path_id": p},
+            action_name = "jondoIngress.setPathID",
+            action_params = { "path_id": n,
+                              "is_submit": is_submit } )
     sw.WriteTableEntry(table_entry);
 
-# Helper function to add an LPM entry to the IPv4 forwarding table.
-# prefix_len = 32 indicates that the address must match the full string
-def AddRoutingEntry(sw, helper, ip, mac_sa, mac_da, egress_port, prefix_len = 32):
+def addPathToJondo(sw, helper, p, j):
     table_entry = helper.buildTableEntry(
-            table_name = "cis553Ingress.tiIpv4Lpm",
-            match_fields = { "hdr.ipv4.dstAddr": [ ip, prefix_len ] },
-            action_name = "cis553Ingress.aiForward",
-            action_params = { "mac_sa": mac_sa,
-                              "mac_da": mac_da,
-                              "egress_port": egress_port } )
+            table_name = "jondoIngress.pathIDToJondoID",
+            match_fields = { "hdr.jondo.path_id": p},
+            action_name = "jondoIngress.setPathID",
+            action_params = { "next_id": j } )
     sw.WriteTableEntry(table_entry);
 
-
-# Helper function to add an entry to the ARP response table.
-# oper = 1 checks that it is a request
-def AddARPResponse(sw, helper, target_pa, mac_sa, oper = 1):
-    table_entry = helper.buildTableEntry(
-            table_name = "cis553Ingress.tiArpResponse",
-            match_fields = { "hdr.arp.oper": oper,
-                             "hdr.arp.targetPA" : target_pa },
-            action_name = "cis553Ingress.aiArpResponse",
-            action_params = { "mac_sa": mac_sa } )
-    sw.WriteTableEntry(table_entry);
+def InitializeJondoToRoute():
+    #TODO maybe hardcode?
+    return
 
 
 def ProgramSwitch(sw, id, p4info_helper):
-    mac_h1_to_s1 = "00:00:00:00:01:01"
-    mac_h2_to_s2 = "00:00:00:00:02:02"
-    mac_h3_to_s3 = "00:00:00:00:03:03"
-
-    mac_s1_to_h1 = "00:00:00:01:01:00"
-    mac_s1_to_s2 = "00:00:00:01:02:00"
-    mac_s1_to_s3 = "00:00:00:01:03:00"
-
-    mac_s2_to_s1 = "00:00:00:02:02:00"
-    mac_s2_to_h2 = "00:00:00:02:01:00"
-    mac_s2_to_s3 = "00:00:00:02:03:00"
-
-    mac_s3_to_s1 = "00:00:00:03:02:00"
-    mac_s3_to_s2 = "00:00:00:03:03:00"
-    mac_s3_to_h3 = "00:00:00:03:01:00"
-
-    if id == 1:
-        AddEthernetEntries(sw, p4info_helper, mac_s1_to_h1, 1);
-        AddEthernetEntries(sw, p4info_helper, mac_s1_to_s2, 2);
-        AddEthernetEntries(sw, p4info_helper, mac_s1_to_s3, 3);
-        AddRoutingEntry(sw, p4info_helper,
-                    "10.0.1.1", mac_s1_to_h1, mac_h1_to_s1, 1);
-        AddRoutingEntry(sw, p4info_helper,
-                    "10.0.2.2", mac_s1_to_s2, mac_s2_to_s1, 2);
-        AddRoutingEntry(sw, p4info_helper,
-                    "10.0.3.3", mac_s1_to_s3, mac_s3_to_s1, 3);
-        AddARPResponse(sw, p4info_helper, "10.0.1.100", mac_s1_to_h1);
     
-    elif id == 2:
-        AddEthernetEntries(sw, p4info_helper, mac_s2_to_h2, 1);
-        AddEthernetEntries(sw, p4info_helper, mac_s2_to_s1, 2);
-        AddEthernetEntries(sw, p4info_helper, mac_s2_to_s3, 3);
-        AddRoutingEntry(sw, p4info_helper,
-                    "10.0.1.1", mac_s2_to_s1, mac_s1_to_s2, 2);
-        AddRoutingEntry(sw, p4info_helper,
-                    "10.0.2.2", mac_s2_to_h2, mac_h2_to_s2, 1);
-        AddRoutingEntry(sw, p4info_helper,
-                    "10.0.3.3", mac_s2_to_s3, mac_s3_to_s2, 3);
-        AddARPResponse(sw, p4info_helper, "10.0.2.100", mac_s2_to_h2);
+    InitializeJondoToRoute()
 
-    elif id == 3:
-        AddEthernetEntries(sw, p4info_helper, mac_s3_to_h3, 1);
-        AddEthernetEntries(sw, p4info_helper, mac_s3_to_s1, 2);
-        AddEthernetEntries(sw, p4info_helper, mac_s3_to_s2, 3);
-        AddRoutingEntry(sw, p4info_helper,
-                    "10.0.1.1", mac_s3_to_s1, mac_s1_to_s3, 2);
-        AddRoutingEntry(sw, p4info_helper,
-                    "10.0.2.2", mac_s3_to_s2, mac_s2_to_s3, 3);
-        AddRoutingEntry(sw, p4info_helper,
-                    "10.0.3.3", mac_s3_to_h3, mac_h3_to_s3, 1);
-        AddARPResponse(sw, p4info_helper, "10.0.3.100", mac_s3_to_h3);
+    digest_config = p4info_helper.buildDigestConfig("jondo_path_gen_t")
 
-    #while True:
-        # This control plane is 100% static! We don't need to loop.
-
+    while True:
+        digest = sw.GetDigest(digest_config)
+        hex_prev_path = digest.digest.data[0].struct.members[0].bitstring
+        prev_path_id = decodeNum(hex_path)
+        hex_path = digest.digest.data[0].struct.members[1].bitstring
+        path_id = decodeNum(hex_path)
+        hex_jondo = digest.digest.data[0].struct.members[2].bitstring
+        jondo_id = decodeMac(hex_jondo)
+        is_submit = 0
+        if (path_id == SUBMIT_ID):
+            is_submit = 1
+        addNextToPrev(sw, p4info_helper, path_id, prev_path_id, is_submit)
+        addPrevToNext(sw, p4info_helper, path_id, prev_path_id, is_submit)
+        addPathToJondo(sw, p4info_helper, path_id, prev_path_id, is_submit)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='CIS553 P4Runtime Controller')
 
     parser.add_argument("-b", '--bmv2-json',
                         help="path to BMv2 switch description (json)",
-                        type=str, action="store", default="build/basic.json")
+                        type=str, action="store", default="build/jondo.json")
     parser.add_argument("-c", '--p4info-file',
                         help="path to P4Runtime protobuf description (text)",
-                        type=str, action="store", default="build/basic.p4info")
+                        type=str, action="store", default="build/jondo.p4info")
 
     args = parser.parse_args()
 

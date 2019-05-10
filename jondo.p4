@@ -15,12 +15,12 @@ typedef bit<16> jondoId_t;
 
 #define TYPE_TCP 6
 #define TYPE_JONDO 233
-#define RANDOM_PLACEHOLDER 233
-#define SUBMIT_ID 233
-#define NO_PATH
+#define RANDOM_PLACEHOLDER 1
+#define SUBMIT_ID 4
+#define NO_PATH 0
 
 header jondo_t {
-	bit<1> is_response;
+	bit<8> is_response; // align to 8
 	pathId_t path_id;
 }
 
@@ -66,6 +66,12 @@ struct jondo_metadata_t {
 	bit<1> is_submit;
 }
 
+struct jondo_path_gen_t {
+	pathId_t prev_path_id;
+	pathId_t path_id;
+	jondoId_t jondo_id;
+}
+
 struct headers_t {
     ethernet_t  ethernet;
     ipv4_t      ipv4;
@@ -93,7 +99,7 @@ parser jondoParser(packet_in packet,
 
     state parse_ipv4 {
         packet.extract(parsed_header.ipv4);
-		transition select(parsed_header.ipv4.protocal)
+		transition select(parsed_header.ipv4.protocol)
 		{
 			TYPE_TCP: parse_tcp;
 			TYPE_JONDO: parse_jondo;
@@ -186,15 +192,19 @@ control jondoIngress(inout headers_t hdr,
 			setPathID;
 		}
 
-		default_action = setPathID;
+		default_action = setPathID(0,0);
 	}
 
 	action buildPath()
 	{
-		hdr.jondo.path_id = RANDOM_PLACEHOLDER;
+		pathId_t next_path_id = RANDOM_PLACEHOLDER;
 		jondoId_t jondo_id = RANDOM_PLACEHOLDER;
-		/* TODO: inform control plane */
 		/*	digest() */
+		jondo_path_gen_t path_gen = {hdr.jondo.path_id, next_path_id, jondo_id};
+		digest(0, path_gen);
+
+		hdr.jondo.path_id = next_path_id;
+
 		if (jondo_id == SUBMIT_ID)
 			metadata.is_submit = 1;
 	}
@@ -206,6 +216,7 @@ control jondoIngress(inout headers_t hdr,
 
 		actions = {
 			setPathID;
+			buildPath;
 		}
 
 		default_action = buildPath;
@@ -223,7 +234,8 @@ control jondoIngress(inout headers_t hdr,
 		actions = {
 			setJondoID;
 		}
-		default_action  = setJondoID;
+		default_action  = setJondoID(0);
+	}
 
 	action convertToJondo()
 	{
@@ -233,7 +245,7 @@ control jondoIngress(inout headers_t hdr,
 
 	table toConvertToJondo {
 		key = {
-			metadata.is_encrypt; // dummy, don't need key
+			metadata.is_encrypt: exact; // dummy, don't need key
 		}
 
 		actions = {
@@ -242,12 +254,15 @@ control jondoIngress(inout headers_t hdr,
 		default_action = convertToJondo;
 	}
 
-	action setRoute(macAddr_t src_mac, macAddr_t dst_mac, ip4Addr_t src_ip, ip4Addr_t dst_ip)
+	action setRoute(macAddr_t src_mac, macAddr_t dst_mac, 
+					ip4Addr_t src_ip, ip4Addr_t dst_ip,
+					portId_t egress_port)
 	{
 		hdr.ethernet.srcAddr = src_mac;
 		hdr.ethernet.dstAddr = dst_mac;
 		hdr.ipv4.srcAddr = src_ip;
 		hdr.ipv4.dstAddr = dst_ip;
+		standard_metadata.egress_spec = egress_port;
 	}
 
 	table jondoIDToRoute {
@@ -257,11 +272,15 @@ control jondoIngress(inout headers_t hdr,
 
 		actions = {
 			setRoute;
+			nop;
 		}
-		default_action = setRoute;
+		default_action = nop;
 	}
 
-	action submit(macAddr_t src_mac, macAddr_t dst_mac, ip4Addr_t src_ip, ip4Addr_t dst_ip, bit<16> src_port, bit<16> dst_port)
+	action submit(macAddr_t src_mac, macAddr_t dst_mac, 
+					ip4Addr_t src_ip, ip4Addr_t dst_ip, 
+					bit<16> src_port, bit<16> dst_port,
+					portId_t egress_port)
 	{
 		hdr.ethernet.srcAddr = src_mac;
 		hdr.ethernet.dstAddr = dst_mac;
@@ -269,6 +288,7 @@ control jondoIngress(inout headers_t hdr,
 		hdr.ipv4.dstAddr = dst_ip;
 		hdr.tcp.srcPort = src_port; /* store path id in srcPort */
 		hdr.tcp.dstPort = dst_port;
+		standard_metadata.egress_spec = egress_port;
 	}
 
 	table toSubmit {
@@ -278,8 +298,9 @@ control jondoIngress(inout headers_t hdr,
 
 		actions = {
 			submit;
+			nop;
 		}
-		default_action = submit;
+		default_action = nop;
 	}
 
     apply {
