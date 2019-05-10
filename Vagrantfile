@@ -12,7 +12,7 @@ Vagrant.configure(2) do |config|
   config.vm.box = "ubuntu/xenial64"
 
   ## Configure hostname and port forwarding
-  config.vm.hostname = "cis553"
+  config.vm.hostname = "p4crowds"
   config.vm.network "forwarded_port", guest: 23333, host: 23333
   config.vm.network "forwarded_port", guest: 8888, host: 8888
   config.ssh.forward_x11 = true
@@ -27,32 +27,10 @@ Vagrant.configure(2) do |config|
     sudo python get-pip.py
     rm -f get-pip.py
 
-    # Assignment 1
     sudo apt-get install -y git unzip autoconf libtool g++ cmake libjudy-dev libreadline-dev pkg-config python-ipaddr libboost-iostreams-dev libboost-graph-dev libgc-dev libssl-dev arping
     sudo pip install psutil
     chmod ugo+x /vagrant/bootstrap.sh
     /vagrant/bootstrap.sh
-
-
-    #sudo apt-get install -y gccgo
-    #sudo pip install jupyter
-    # Assignment 2
-    #sudo apt-get install -y python-tk
-    # Assignment 3
-    #sudo apt-get install -y mininet
-    #sudo apt-get install -y python-numpy
-    #sudo apt-get install -y python-matplotlib
-    # Assignment 4
-    #sudo apt-get install -y whois
-    #sudo pip install ipaddress
-    # Assignment 5
-    #sudo pip install scapy
-    #sudo apt-get install -y bind9
-    #sudo cp /vagrant/assignment5/bind/* /etc/bind
-    # Assignment 6
-    #sudo apt-get install -y apache2-utils
-    #echo "export GOPATH=/vagrant/assignment6" >> ~/.bash_profile
-
     
   SHELL
 
